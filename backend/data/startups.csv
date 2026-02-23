@@ -1,0 +1,8 @@
+email,password,name,description,sector,stage,funding_needed,location,team_size,revenue,growth_rate,created_at
+startup1@demo.com,password123,TechFlow AI,AI-powered workflow automation for enterprises,Technology,Seed,150000,North America,5,50000,200,2024-01-10T09:00:00
+startup2@demo.com,password123,HealthEasy,Mobile app for appointment scheduling,Healthcare,Pre-Seed,50000,North America,3,0,0,2024-01-11T10:00:00
+startup3@demo.com,password123,GreenCharge,EV charging station network,Energy,Series A,500000,Europe,12,200000,150,2024-01-12T11:00:00
+startup4@demo.com,password123,ShopSmart,E-commerce analytics platform,E-commerce,Seed,100000,North America,4,75000,300,2024-01-13T12:00:00
+startup5@demo.com,password123,FinTrack,Personal finance management app,Finance,Pre-Seed,30000,North America,2,0,0,2024-01-14T13:00:00
+startup6@demo.com,password123,AgriSmart,Smart farming IoT solutions,Agriculture,Seed,200000,Asia,8,100000,100,2024-01-15T14:00:00
+startup7@demo.com,password123,LearnBox,Online education platform,Education,Series A,400000,Global,15,500000,80,2024-01-16T15:00:00

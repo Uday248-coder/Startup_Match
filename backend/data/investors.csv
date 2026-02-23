@@ -1,0 +1,6 @@
+email,password,name,company,sectors,stage_preference,min_check,max_check,locations,created_at
+investor1@demo.com,password123,John Smith,Venture Capital LLC,"Technology,Healthcare",Series A,100000,500000,"North America,Europe",2024-01-15T10:00:00
+investor2@demo.com,password123,Sarah Johnson,Angel Fund,"E-commerce,Finance",Seed,25000,100000,"North America",2024-01-16T11:00:00
+investor3@demo.com,password123,Mike Chen,Tech Ventures,"Technology",Series B,500000,2000000,"Global",2024-01-17T12:00:00
+investor4@demo.com,password123,Emma Wilson,Green Energy Fund,"Energy,Manufacturing",Seed,50000,250000,"Europe,North America",2024-01-18T13:00:00
+investor5@demo.com,password123,David Lee,Health Innovations,"Healthcare,Biotech",Series A,200000,750000,"North America",2024-01-19T14:00:00
