@@ -1,16 +1,15 @@
 [theme]
 base                = "light"
-backgroundColor     = "#f3f2ef"
-secondaryBackgroundColor = "#ffffff"
-textColor           = "#1d2226"
-primaryColor        = "#0a66c2"
+backgroundColor     = "#0f0f1a"
+secondaryBackgroundColor = "#16162a"
+textColor           = "#e2e8f0"
+primaryColor        = "#6366f1"
 font                = "sans serif"
 
 [server]
 headless            = true
 runOnSave           = true
 fileWatcherType     = "none"
-
 
 [browser]
 gatherUsageStats    = false
