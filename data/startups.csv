@@ -1,4 +1,4 @@
-D,Name,Founder,Sector,Stage,Description,Location,Revenue
+ID,Name,Founder,Sector,Stage,Description,Location,Revenue
 S001,NeuralCart,Priya Sharma,AI/ML,Series A,"AI-powered personalized shopping engine that uses deep learning to predict consumer preferences and optimize conversion rates for e-commerce platforms.",San Francisco,1200000
 S002,GreenGrid,Liam O'Brien,CleanTech,Seed,"Decentralized peer-to-peer energy trading platform enabling households with solar panels to sell excess energy directly to neighbors via blockchain.",Austin,180000
 S003,MedPulse,Aisha Kone,HealthTech,Pre-Seed,"Real-time remote patient monitoring platform using wearable IoT sensors and ML anomaly detection to reduce hospital readmissions by 40%.",Boston,0

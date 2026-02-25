@@ -1,4 +1,4 @@
-D,Name,Firm,Sector,Stage,Thesis,Location,TicketSize
+ID,Name,Firm,Sector,Stage,Thesis,Location,TicketSize
 I001,Sarah Chen,Sequoia Capital,AI/ML,"Seed,Series A","Investing in AI-native companies that apply large language models and deep learning to transform consumer commerce, personalization, and recommendation systems.",Menlo Park,500000
 I002,David Okafor,Andreessen Horowitz,FinTech,"Series A,Series B","Backing infrastructure-layer fintech startups disrupting cross-border payments, open banking, and embedded finance in high-growth emerging markets.",San Francisco,2000000
 I003,Emily Watson,Breakthrough Energy Ventures,CleanTech,"Seed,Series A","Supporting science-based climate tech companies developing scalable solutions in renewable energy, grid modernization, and carbon measurement and removal.",Seattle,750000
