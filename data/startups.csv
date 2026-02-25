@@ -1,0 +1,16 @@
+D,Name,Founder,Sector,Stage,Description,Location,Revenue
+S001,NeuralCart,Priya Sharma,AI/ML,Series A,"AI-powered personalized shopping engine that uses deep learning to predict consumer preferences and optimize conversion rates for e-commerce platforms.",San Francisco,1200000
+S002,GreenGrid,Liam O'Brien,CleanTech,Seed,"Decentralized peer-to-peer energy trading platform enabling households with solar panels to sell excess energy directly to neighbors via blockchain.",Austin,180000
+S003,MedPulse,Aisha Kone,HealthTech,Pre-Seed,"Real-time remote patient monitoring platform using wearable IoT sensors and ML anomaly detection to reduce hospital readmissions by 40%.",Boston,0
+S004,CodeMentor AI,Raj Patel,EdTech,Seed,"Adaptive coding education platform powered by LLMs that generates personalized curriculum and provides real-time code review for self-taught developers.",Bangalore,320000
+S005,SupplySync,Maria Garcia,Logistics,Series A,"ML-driven supply chain optimization SaaS that predicts disruptions, automates procurement decisions, and reduces inventory costs for mid-market manufacturers.",Chicago,2100000
+S006,CyberShield,Tom Zhang,Cybersecurity,Series B,"Zero-trust security platform using behavioral AI to detect and neutralize insider threats in real-time for enterprise Fortune 500 clients.",New York,8500000
+S007,AgriBot,Fatima Al-Hassan,AgriTech,Seed,"Autonomous drone fleet management system with computer vision for crop health monitoring, precision spraying, and yield forecasting for large-scale farms.",Iowa City,250000
+S008,FinFlow,Carlos Mendez,FinTech,Pre-Seed,"Open banking API aggregator with AI-driven cash flow forecasting dashboard designed for SMB owners to prevent insolvency and optimize working capital.",Miami,40000
+S009,TheraPeer,Jin Li,MentalHealth,Seed,"AI-assisted peer support platform that matches users with trained volunteer counselors, using NLP sentiment analysis to escalate crisis cases to professionals.",Seattle,150000
+S010,RecruitLens,Yemi Adeyemi,HR Tech,Series A,"Bias-reduction hiring platform using CV anonymization, structured interview scoring, and predictive analytics to improve diversity outcomes for tech companies.",London,950000
+S011,DataVault,Sophie Müller,Cybersecurity,Seed,"Privacy-first data warehouse solution with built-in differential privacy and federated learning capabilities for healthcare and financial data compliance.",Berlin,310000
+S012,RoboWeld,Alex Kim,Manufacturing,Series A,"AI-guided robotic welding system that uses computer vision and reinforcement learning to automate complex joins, reducing defects by 60% in automotive manufacturing.",Detroit,1800000
+S013,LearnSphere,Amara Diallo,EdTech,Seed,"Immersive VR/AR learning environment for K-12 STEM education, delivering interactive simulations that improve knowledge retention by 3x over traditional methods.",Toronto,200000
+S014,CarbonTrace,Ben Hooper,CleanTech,Pre-Seed,"End-to-end carbon footprint tracking SaaS for SMEs, integrating with ERP and supply chain data to automate Scope 1-3 emissions reporting and offset purchasing.",London,25000
+S015,PayMesh,Nadia Okonkwo,FinTech,Series B,"Cross-border payment infrastructure using stablecoin settlement rails to enable instant, near-zero-fee B2B transactions for emerging market businesses.",Lagos,4200000
