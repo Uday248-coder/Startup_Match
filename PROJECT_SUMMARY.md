@@ -1,297 +1,361 @@
-# StartupMatch - Project Summary
+# StartMatch — Architecture
 
-## Overview
+## What This Is
 
-**Project Name:** StartupMatch  
-**Goal:** A platform that connects investors with startups using intelligent matching algorithms, enabling bidirectional discovery and seamless communication.
+StartMatch is a full-stack matchmaking platform that connects startups with investors using AI-powered semantic matching. The idea is simple: instead of keyword filters or manual browsing, both sides fill out a profile and the system figures out who actually fits who — using real NLP, not just "you're both in FinTech."
 
-**Current Status:** MVP Complete (Rules-based matching, ready for ML enhancement)
+This document covers how the app is structured, how the matching works under the hood, what's in the database, and where things are headed.
 
 ---
 
-## Architecture
+## Project Structure
 
 ```
 startupmatch/
-├── backend/                    # Flask API (Python)
-│   ├── app.py                  # Entry point, routes registration
-│   ├── auth.py                 # JWT auth, CSV data handlers
-│   ├── matching.py             # Rules-based scoring algorithm
-│   ├── routes/
-│   │   ├── auth_routes.py      # /api/auth/*
-│   │   ├── investor_routes.py  # /api/investor/*
-│   │   └── startup_routes.py   # /api/startup/*
-│   └── data/                   # CSV storage (to migrate to DB)
-│       ├── investors.csv
-│       ├── startups.csv
-│       └── matches.csv
-├── frontend/                   # React + Vite
-│   └── src/
-│       ├── pages/              # Login, Register, Dashboards
-│       ├── App.jsx             # Main app with routing
-│       ├── api.js             # API client
-│       └── App.css            # Styling
-├── model/                     # Jupyter notebooks for ML
-│   ├── matching_model.ipynb   # PyTorch + Gradient Boosting
-│   └── training_guide.ipynb   # Training instructions
-└── requirements.txt           # Python dependencies
+├── app.py                  # Everything — single-file Streamlit app
+├── data/
+│   ├── db.sqlite           # SQLite database (users, startups, investors)
+│   ├── startups.csv        # Seed data for market stats charts
+│   └── investors.csv       # Seed data for market stats charts
+└── requirements.txt
 ```
+
+This is intentionally a single-file architecture right now. The whole app — routing, database, UI, matching logic — lives in `app.py`. It's not the most scalable pattern long-term, but it's clean for an MVP and easy to reason about. When the time comes to split it up, the logical seams are already there.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| Frontend | React 18 + Vite | Fast, lightweight UI |
-| Backend | Flask (Python) | REST API |
-| Storage | CSV files | Simple data persistence (MVP) |
-| Auth | JWT (PyJWT) | Stateless authentication |
-| ML Framework | PyTorch + scikit-learn | Model training |
-| Deployment | Local (Docker planned) | Development environment |
+| Layer | Technology | Why |
+|---|---|---|
+| UI + Routing | Streamlit | Fast iteration, Python-native, no frontend build step |
+| Database | SQLite (via `sqlite3`) | Zero config, file-based, easy to migrate later |
+| AI Matching | `sentence-transformers` (`all-MiniLM-L6-v2`) | Lightweight, runs locally, good enough for semantic similarity |
+| Similarity | `sklearn.metrics.pairwise.cosine_similarity` | Standard, fast |
+| Charts | Plotly (`graph_objects`) | Full control over styling in dark theme |
+| Data | Pandas | Seed data loading and market stats aggregation |
+| Auth | SHA-256 password hashing + Streamlit session state | Simple, stateless |
 
 ---
 
-## Matching Algorithm
+## Application Layers
 
-### Current Implementation (Rules-Based)
+The app is organized into logical layers even though they all live in one file:
 
-**Score Formula:**
 ```
-Total Score = 0.40 × Sector_Match 
-            + 0.25 × Stage_Match 
-            + 0.15 × Location_Match 
-            + 0.20 × Funding_Match
-```
-
-**Component Scoring:**
-
-| Component | Logic |
-|-----------|-------|
-| **Sector Match** | 1.0 if startup sector in investor's preferred sectors, else 0.0 |
-| **Stage Match** | 1.0 if exact match, decreases by 0.25 per stage difference |
-| **Location Match** | 1.0 if match or "Global", else 0.3 |
-| **Funding Match** | 1.0 if within range, proportional score otherwise |
-
-**Stages Order:** Pre-Seed → Seed → Series A → Series B → Series C → Growth
-
-### Future Implementation (ML-Based)
-
-- **Architecture:** Neural Network (64→32→16→1) + Gradient Boosting ensemble
-- **Input Features:** 8 numerical features (sector_match, stage_match, location_match, funding_match, team_size, revenue, growth_rate)
-- **Output:** Match probability (0-1)
-- **Training:** Supervised learning with labeled successful/failed matches
-
----
-
-## API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/signup/investor` | Register new investor |
-| POST | `/api/auth/signup/startup` | Register new startup |
-| POST | `/api/auth/login` | Login (returns JWT) |
-| GET | `/api/auth/verify` | Verify token validity |
-
-### Investor
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/investor/profile` | Get investor profile |
-| PUT | `/api/investor/profile` | Update profile |
-| GET | `/api/investor/matches?top=N` | Get top N matching startups |
-| GET | `/api/investor/all` | List all investors (public) |
-
-### Startup
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/startup/profile` | Get startup profile |
-| PUT | `/api/startup/profile` | Update profile |
-| GET | `/api/startup/matches?top=N` | Get top N matching investors |
-| GET | `/api/startup/all` | List all startups (public) |
-
----
-
-## Data Models
-
-### Investor Profile
-```json
-{
-  "id": "abc123",
-  "email": "investor@example.com",
-  "name": "John Smith",
-  "company": "Venture Capital LLC",
-  "sectors": ["Technology", "Healthcare"],
-  "stage_preference": "Series A",
-  "min_check": 100000,
-  "max_check": 500000,
-  "locations": ["North America", "Europe"],
-  "created_at": "2024-01-15T10:00:00"
-}
-```
-
-### Startup Profile
-```json
-{
-  "id": "xyz789",
-  "email": "founder@startup.com",
-  "name": "TechFlow AI",
-  "description": "AI-powered workflow automation",
-  "sector": "Technology",
-  "stage": "Seed",
-  "funding_needed": 150000,
-  "location": "North America",
-  "team_size": 5,
-  "revenue": 50000,
-  "growth_rate": 200,
-  "created_at": "2024-01-10T09:00:00"
-}
-```
-
-### Match Result
-```json
-{
-  "investor_id": "abc123",
-  "startup_id": "xyz789",
-  "score": 0.85,
-  "sector_match": 1.0,
-  "stage_match": 0.75,
-  "location_match": 1.0,
-  "funding_match": 0.6,
-  "computed_at": "2024-01-20T12:00:00"
-}
+┌─────────────────────────────────────────────────┐
+│                   Router                         │
+│  (session state decides what page renders)       │
+├─────────────────────────────────────────────────┤
+│                 Page Functions                   │
+│  login_page / signup_page / dashboard_tab /      │
+│  profile_tab / matches_tab / stats_tab /         │
+│  drilldown_page / edit_profile_page              │
+├─────────────────────────────────────────────────┤
+│              Matching Engine                     │
+│  compute_matches()  ←  unfiltered top 5          │
+│  compute_filtered_matches()  ←  with field filters│
+│  radar_scores()  ←  per-dimension breakdown      │
+│  gen_summary() / gen_red_flags() / gen_next_steps│
+├─────────────────────────────────────────────────┤
+│               AI / NLP Layer                     │
+│  SentenceTransformer (cached via @st.cache_resource) │
+│  emb() / embs()  →  cosine_similarity            │
+├─────────────────────────────────────────────────┤
+│               Data Layer (CRUD)                  │
+│  SQLite via get_con() + qry()                    │
+│  ins_startup / ins_investor / upd_* / get_*      │
+└─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Current Progress
+## Database Schema
 
-| Milestone | Status |
-|-----------|--------|
-| Project structure | ✅ Complete |
-| Backend API (Flask) | ✅ Complete |
-| CSV data handlers | ✅ Complete |
-| JWT authentication | ✅ Complete |
-| Rules-based matching | ✅ Complete |
-| React frontend | ✅ Complete |
-| Demo data (5 investors, 7 startups) | ✅ Complete |
-| Jupyter ML notebooks | ✅ Complete |
-| ML model training | ⏳ Pending (needs data) |
-| Messaging system | 📋 Planned |
-| Database migration (PostgreSQL) | 📋 Planned |
-| Docker deployment | 📋 Planned |
+Three tables. Simple.
+
+### `startups`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | UUID |
+| `name` | TEXT | Company name |
+| `founder` | TEXT | |
+| `sector` | TEXT | One of 15 predefined sectors |
+| `stage` | TEXT | Pre-Seed → Series C+ |
+| `location` | TEXT | City |
+| `description` | TEXT | Main input for AI matching |
+| `revenue` | REAL | Annual revenue |
+| `website` | TEXT | |
+| `team_size` | INTEGER | |
+| `linkedin` | TEXT | |
+| `target_market` | TEXT | |
+| `business_model` | TEXT | B2B, B2C, SaaS, etc. |
+| `country` | TEXT | Country of incorporation |
+| `mrr` | REAL | Monthly recurring revenue |
+| `growth_rate` | REAL | MoM growth % |
+| `runway` | INTEGER | Months of runway |
+| `burn_rate` | REAL | Monthly burn |
+
+### `investors`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | UUID |
+| `name` | TEXT | |
+| `firm` | TEXT | Fund name |
+| `sector` | TEXT | Primary focus sector |
+| `stage` | TEXT | Comma-separated list e.g. "Seed, Series A" |
+| `location` | TEXT | City |
+| `thesis` | TEXT | Main input for AI matching |
+| `ticket_size` | REAL | Typical check size |
+| `website` | TEXT | |
+| `fund_size` | REAL | |
+| `portfolio_count` | INTEGER | |
+| `notable_investments` | TEXT | Comma-separated company names |
+| `geo_focus` | TEXT | Comma-separated regions |
+| `co_invest_pref` | TEXT | Lead / Follow / Either |
+| `decision_timeline` | TEXT | |
+| `business_model_pref` | TEXT | |
+| `linkedin` | TEXT | |
+| `investments_per_year` | INTEGER | |
+
+### `users`
+
+| Column | Type | Notes |
+|---|---|---|
+| `username` | TEXT PK | |
+| `password` | TEXT | SHA-256 hash |
+| `role` | TEXT | "Startup" or "Investor" |
+| `entity_id` | TEXT | FK → `startups.id` or `investors.id` |
+
+The `users` table is the auth layer. It links credentials to a profile. One user = one entity. No admin role yet.
 
 ---
 
-## Dataset Requirements
+## Matching Engine
 
-### What We Need
+This is the core of the product. There are two matching functions:
 
-To train the ML model effectively, we need **labeled match data**:
+### `compute_matches(user)` — Unfiltered
 
-| Data Type | Description | Min Quantity |
-|-----------|-------------|--------------|
-| **Successful Matches** | Investor-startup pairs that resulted in funding | 100+ |
-| **Failed Matches** | Pairs that connected but didn't result in funding | 100+ |
-| **Investor Profiles** | Complete investor preferences | 50+ |
-| **Startup Profiles** | Complete startup details | 100+ |
+Runs against the full registered opposite side. Returns top 5 by cosine similarity.
 
-### Required CSV Format for Training
-
-**labeled_matches.csv:**
-```csv
-investor_id,startup_id,success
-inv_001,start_001,1
-inv_002,start_001,0
-inv_003,start_002,1
+```
+1. Load my profile (startup or investor)
+2. Load all registered counterparts
+3. Build text:
+     - startup  → description
+     - investor → thesis
+4. Encode all texts with SentenceTransformer
+5. cosine_similarity(my_embedding, all_embeddings)
+6. argsort descending → top 5
 ```
 
-- `success = 1`: Investment occurred
-- `success = 0`: Match explored but no investment
+### `compute_filtered_matches(user, f_sector, f_stage, f_location, f_biz_model)` — Filtered
 
-### Potential Data Sources
+Same as above but pre-filters the corpus before embedding. Returns `(results, total_before, total_after)` so the UI can show "3 of 12 investors match your filters."
 
-| Source | Type | Access |
-|--------|------|--------|
-| Crunchbase | Startup/Investor data | API (paid) |
-| PitchBook | VC deals | Subscription |
-| AngelList | Startup profiles | API |
-| CB Insights | Funding rounds | Subscription |
-| Kaggle Datasets | Startup/company data | Free |
-| SEC EDGAR | Public filings | Free |
+Filter logic by role:
 
-### Recommended Kaggle Searches
-- "startup funding dataset"
-- "venture capital investments"
-- "company funding rounds"
-- "crunchbase dataset"
-- "angel investment data"
+**If I'm a Startup, filtering Investors:**
+- `f_sector` → `investor.sector == f_sector`
+- `f_stage` → `f_stage in investor.stage.split(',')`
+- `f_location` → substring match on `investor.location`
+- `f_biz_model` → `investor.business_model_pref in ('Any', f_biz_model)`
 
----
+**If I'm an Investor, filtering Startups:**
+- `f_sector` → `startup.sector == f_sector`
+- `f_stage` → `startup.stage == f_stage`
+- `f_location` → substring match on `startup.location`
+- `f_biz_model` → `startup.business_model == f_biz_model`
 
-## How to Run
+### `radar_scores(startup, investor, nlp_score)` — Per-Dimension Breakdown
 
-### Backend
-```bash
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate (Windows)
-pip install -r requirements.txt
-cd backend && python app.py
+Used in the drilldown page to power the radar chart. Five dimensions:
+
 ```
-Runs at: `http://localhost:5000`
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
+Total Score = 0.40 × Semantic (cosine similarity × 100)
+            + 0.25 × Sector   (100 if match, else 15)
+            + 0.20 × Stage    (100 if in list, else 20)
+            + 0.10 × Location (100 if same city, else 35)
+            + 0.05 × Scale    (ticket size vs stage norms)
 ```
-Runs at: `http://localhost:3000`
 
-### Demo Credentials
-| User Type | Email | Password |
-|-----------|-------|----------|
-| Investor | investor1@demo.com | password123 |
-| Startup | startup1@demo.com | password123 |
+Stage → ticket size ranges used for Scale scoring:
 
----
-
-## Key Files for New Developers
-
-| File | Purpose |
-|------|---------|
-| `backend/matching.py` | Core matching logic - start here |
-| `backend/auth.py` | User management & data persistence |
-| `frontend/src/pages/InvestorDashboard.jsx` | Investor UI |
-| `frontend/src/pages/StartupDashboard.jsx` | Startup UI |
-| `model/matching_model.ipynb` | ML training code (Kaggle-ready) |
+| Stage | Expected Ticket Range |
+|---|---|
+| Pre-Seed | $0 – $500K |
+| Seed | $100K – $2M |
+| Series A | $1M – $10M |
+| Series B | $5M – $30M |
+| Series C+ | $20M – $200M |
 
 ---
 
-## Next Steps
+## AI Model
 
-1. **Acquire labeled data** - Find datasets with successful investor-startup matches
-2. **Train ML model** - Use `model/matching_model.ipynb` on Kaggle with GPU
-3. **Integrate trained model** - Replace rules-based scoring in `backend/matching.py`
-4. **Add messaging** - DM functionality between matched parties
-5. **Migrate to database** - PostgreSQL or MongoDB for production
-6. **Deploy** - Docker + cloud hosting
+Using `all-MiniLM-L6-v2` from `sentence-transformers`. It's a 22M parameter model that maps sentences to 384-dimensional embeddings.
+
+Why this model:
+- Small enough to run locally without a GPU
+- Fast enough that matching doesn't feel slow in Streamlit
+- Good enough semantic quality for startup/investor thesis matching
+- Cached with `@st.cache_resource` so it only loads once per session
+
+The model is never fine-tuned — it runs zero-shot. The thesis and description fields are the only text inputs. Better descriptions → better match scores. This is explained to users in the signup flow.
+
+```python
+@st.cache_resource(show_spinner="Loading AI model…")
+def get_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
+```
 
 ---
 
-## Contact & Handoff
+## Auth Flow
 
-**Project Location:** `D:\StartupMatch\`
+No JWT, no OAuth. Session-state based auth:
 
-**Key Dependencies:**
-- Python 3.10+
-- Node.js 18+
-- PyTorch (for ML training)
+```
+1. User enters username + password
+2. SHA-256 hash of password compared to stored hash
+3. On success → st.session_state.authenticated = True
+                 st.session_state.user = row (dict from users table)
+4. All pages check st.session_state.authenticated before rendering
+5. Sign Out → st.session_state.update(DEFS) → rerun
+```
 
-**Questions to Resolve:**
-1. Where will production data come from?
-2. What's the target user base size?
-3. Preference for cloud provider (AWS, GCP, Azure)?
+Passwords are hashed before storage. No plaintext anywhere. Good enough for an MVP — would need proper bcrypt + salting before any real production deployment.
+
+---
+
+## Page Routing
+
+Streamlit doesn't have a real router so routing is handled manually via session state flags:
+
+```
+authenticated == False  →  login_page() or signup_page()
+
+authenticated == True:
+  edit_mode == True         →  edit_profile_page()
+  drilldown_id is not None  →  drilldown_page()
+  else                      →  tabbed layout:
+                                 Dashboard / Profile / Matches / Market
+```
+
+The signup flow has its own internal state machine using `signup_step` (1, 2, 3) and `signup_data` (accumulates across steps).
+
+---
+
+## UI Architecture
+
+Pure CSS dark theme. No external component library. Everything is styled via a large `st.markdown("""<style>...</style>""")` block injected at startup.
+
+Design decisions worth noting:
+- Sidebar is fully hidden via CSS (`display:none`) — not just collapsed
+- All custom cards use `st.container(border=True)` as the base and get styled via the global CSS
+- SVG score rings are generated programmatically in Python and injected as HTML
+- Sector colors are consistent across all components via `SECTOR_COLORS` dict
+- The header renders outside the tab system and is shared across all logged-in pages
+
+---
+
+## Data Flow — New User Registration
+
+```
+signup_page (step 1) → collect role, name, sector, stage, location
+         ↓
+signup_page (step 2) → collect description/thesis, website, linkedin, biz model
+         ↓
+signup_page (step 3) → collect financials + credentials
+         ↓
+ins_startup() or ins_investor()
+  → INSERT INTO startups/investors
+  → INSERT INTO users (hashed password)
+         ↓
+st.session_state.auth_view = "login"
+→ user redirected to sign in
+```
+
+---
+
+## Data Flow — Match Computation
+
+```
+User lands on Matches tab
+         ↓
+compute_filtered_matches() or compute_matches()
+         ↓
+get_me() → load my profile from DB
+registered_opposite() → load all counterparts who have accounts
+         ↓
+Apply field filters (if any)
+         ↓
+emb(my_text) → 384-dim vector
+embs([counterpart texts]) → matrix
+cosine_similarity → scores array
+argsort → top 5
+         ↓
+Render match cards with score rings
+         ↓
+User clicks "View" → drilldown_id set → rerun
+         ↓
+drilldown_page() renders:
+  - radar_scores() → 5-axis breakdown
+  - gen_summary() → rule-based text summary
+  - gen_red_flags() → mismatch warnings
+  - gen_next_steps() → actionable advice
+  - kw_overlap() → shared keyword tags
+```
+
+---
+
+## Current Status
+
+| Feature | Status |
+|---|---|
+| Streamlit single-file architecture | ✅ Done |
+| SQLite persistence | ✅ Done |
+| Multi-step signup (startup + investor) | ✅ Done |
+| SHA-256 auth | ✅ Done |
+| Semantic matching (MiniLM) | ✅ Done |
+| Radar chart score breakdown | ✅ Done |
+| AI-generated match summaries | ✅ Done (rule-based) |
+| Red flags + next steps | ✅ Done |
+| Market intelligence tab | ✅ Done |
+| Profile edit | ✅ Done |
+| Field-based filtered matching | ✅ Done |
+| Sidebar removed, sign-out in header | ✅ Done |
+| Messaging / DMs | 📋 Planned |
+| Fine-tuned matching model | 📋 Planned |
+| PostgreSQL migration | 📋 Planned |
+| Multi-user admin view | 📋 Planned |
+| Email notifications on match | 📋 Planned |
+
+---
+
+## Known Limitations
+
+- **Single-file app** — works fine at this scale, will need to be split into modules as the codebase grows
+- **SQLite** — not suitable for concurrent writes at scale; migration to PostgreSQL is the obvious next step
+- **No fine-tuning** — the MiniLM model is used zero-shot; match quality would improve significantly with domain-specific fine-tuning on real startup/investor corpus
+- **Password hashing** — SHA-256 without salt is fine for a demo, not for production; needs bcrypt
+- **No rate limiting** — the matching runs on every tab switch; should be cached per user session
+- **Seed CSVs** — market stats tab falls back gracefully if CSVs aren't present, but the data is static
+
+---
+
+## Maybe Future
+
+1. Split `app.py` into `db.py`, `matching.py`, `ui/` modules
+2. Swap SQLite for PostgreSQL when deploying to production
+3. Collect real match outcome data to fine-tune the embedding model
+4. Add bcrypt for password hashing
+5. Add a messaging layer between matched parties
+6. Cache match results per session instead of recomputing on every render
+
+---
+
+*Built by U.K.B.*
