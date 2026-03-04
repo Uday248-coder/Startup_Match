@@ -51,7 +51,7 @@ st.set_page_config(page_title="StartMatch", layout="wide",
                    initial_sidebar_state="collapsed")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CSS — AngelList-inspired, premium dark
+# CSS
 # ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -67,23 +67,9 @@ html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
 }
 .block-container{ padding-top:1.5rem !important; max-width:1200px !important; }
 
-/* ── SIDEBAR ── */
-[data-testid="stSidebar"],[data-testid="stSidebar"]>div:first-child{
-  background:#08080f !important;
-  border-right:1px solid #1a1a2e !important;
-}
-[data-testid="stSidebar"] *{ color:#64748b !important; }
-[data-testid="stSidebar"] strong{ color:#94a3b8 !important; }
-[data-testid="stSidebar"] .stButton>button{
-  background:#13131f !important; color:#64748b !important;
-  border:1px solid #1a1a2e !important; border-radius:8px !important;
-  font-weight:600 !important; box-shadow:none !important;
-  transition:all .15s !important;
-}
-[data-testid="stSidebar"] .stButton>button:hover{
-  background:#1a1a2e !important; color:#f1f5f9 !important;
-  border-color:#f59e0b !important;
-}
+/* ── HIDE SIDEBAR ENTIRELY ── */
+[data-testid="stSidebar"]{ display:none !important; }
+[data-testid="stSidebarCollapsedControl"]{ display:none !important; }
 
 /* ── TYPOGRAPHY ── */
 h1{ font-size:1.9rem !important; font-weight:800 !important;
@@ -101,7 +87,7 @@ p,span,div,label,li,td,th,
   color:#64748b !important; font-size:.78rem !important;
 }
 
-/* ── NAV TABS (AngelList underline style) ── */
+/* ── NAV TABS ── */
 [data-testid="stTabs"] [data-baseweb="tab-list"]{
   background:transparent !important;
   border-bottom:1px solid #1a1a2e !important;
@@ -166,7 +152,6 @@ button[data-baseweb="tab"][aria-selected="true"]{
   box-shadow:0 4px 20px rgba(245,158,11,.45) !important;
   transform:translateY(-1px) !important;
 }
-/* Ghost button override — second button in a column pair */
 div[data-testid="column"]:last-child .stButton>button,
 .ghost-btn .stButton>button{
   background:transparent !important;
@@ -179,6 +164,23 @@ div[data-testid="column"]:last-child .stButton>button:hover,
   border-color:#64748b !important;
   color:#f1f5f9 !important;
   transform:none !important;
+}
+
+/* ── SIGN OUT BUTTON — always ghost style ── */
+.signout-btn .stButton>button{
+  background:transparent !important;
+  color:#64748b !important;
+  border:1px solid #2a2a42 !important;
+  box-shadow:none !important;
+  padding:6px 14px !important;
+  font-size:.78rem !important;
+  font-weight:600 !important;
+}
+.signout-btn .stButton>button:hover{
+  border-color:#f87171 !important;
+  color:#f87171 !important;
+  transform:none !important;
+  box-shadow:none !important;
 }
 
 /* ── LINK BUTTON ── */
@@ -298,28 +300,7 @@ hr{ border-color:#1a1a2e !important; margin:20px 0 !important; }
   min-height:0 !important;
   overflow:visible !important;
 }
-[data-testid="stHeader"]>*:not([data-testid="stSidebarCollapsedControl"]){
-  display:none !important;
-}
-[data-testid="stSidebarCollapsedControl"]{
-  position:fixed !important;
-  top:10px !important;
-  left:10px !important;
-  z-index:9999 !important;
-  background:#13131f !important;
-  border:1px solid #2a2a42 !important;
-  border-radius:8px !important;
-  padding:4px !important;
-}
-[data-testid="stSidebarCollapsedControl"]:hover{
-  border-color:#f59e0b !important;
-}
-[data-testid="stSidebarCollapsedControl"] svg{
-  fill:#64748b !important;
-}
-[data-testid="stSidebarCollapsedControl"]:hover svg{
-  fill:#f59e0b !important;
-}
+[data-testid="stHeader"]>*{ display:none !important; }
 [data-testid="stNumberInput"] button{
   background:#1a1a2e !important; border:1px solid #2a2a42 !important;
   color:#94a3b8 !important;
@@ -364,7 +345,6 @@ def init_db():
             role TEXT NOT NULL, entity_id TEXT NOT NULL
         );
     """)
-    # migrate older DBs
     new_s = [("team_size","INTEGER DEFAULT 0"),("linkedin","TEXT DEFAULT ''"),
              ("target_market","TEXT DEFAULT ''"),("business_model","TEXT DEFAULT ''"),
              ("country","TEXT DEFAULT ''"),("mrr","REAL DEFAULT 0"),
@@ -477,6 +457,84 @@ def compute_matches(user):
     sims   = cosine_similarity([emb(my_txt)], embs(ctxts))[0]
     top    = np.argsort(sims)[::-1][:5]
     return [(corpus[i], round(float(sims[i])*100,1)) for i in top]
+
+
+def compute_filtered_matches(user, f_sector=None, f_stage=None, f_location=None, f_biz_model=None):
+    """
+    Return top-5 matches from the opposite side, filtered by any combination
+    of sector, stage, location and business model.
+
+    For a Startup the counterpart is an Investor:
+        sector       → investor.sector
+        stage        → investor.stage  (comma-separated list)
+        location     → investor.location
+        biz_model    → investor.business_model_pref
+
+    For an Investor the counterpart is a Startup:
+        sector       → startup.sector
+        stage        → startup.stage
+        location     → startup.location
+        biz_model    → startup.business_model
+
+    Returns (results, total_before_filter, total_after_filter) where
+    results is a list of (entity_dict, score).
+    """
+    me = get_startup(user['entity_id']) if user['role'] == "Startup" \
+         else get_investor(user['entity_id'])
+    if not me:
+        return [], 0, 0
+
+    corpus = registered_opposite(user['role'])
+    total_before = len(corpus)
+    if not corpus:
+        return [], 0, 0
+
+    filtered = []
+    for e in corpus:
+        if user['role'] == "Startup":
+            # e is an investor
+            if f_sector and f_sector != "All":
+                if (e.get('sector') or '') != f_sector:
+                    continue
+            if f_stage and f_stage != "All":
+                inv_stages = [s.strip() for s in (e.get('stage') or '').split(',')]
+                if f_stage not in inv_stages:
+                    continue
+            if f_location and f_location.strip():
+                if f_location.lower().strip() not in (e.get('location') or '').lower():
+                    continue
+            if f_biz_model and f_biz_model != "All":
+                pref = (e.get('business_model_pref') or '').strip()
+                if pref not in ('Any', f_biz_model):
+                    continue
+        else:
+            # e is a startup
+            if f_sector and f_sector != "All":
+                if (e.get('sector') or '') != f_sector:
+                    continue
+            if f_stage and f_stage != "All":
+                if (e.get('stage') or '') != f_stage:
+                    continue
+            if f_location and f_location.strip():
+                if f_location.lower().strip() not in (e.get('location') or '').lower():
+                    continue
+            if f_biz_model and f_biz_model != "All":
+                if (e.get('business_model') or '') != f_biz_model:
+                    continue
+        filtered.append(e)
+
+    total_after = len(filtered)
+    if not filtered:
+        return [], total_before, 0
+
+    my_txt = (me.get('description') if user['role'] == "Startup" else me.get('thesis')) or ""
+    ctxts  = [(e.get('thesis') if user['role'] == "Startup" else e.get('description')) or ""
+              for e in filtered]
+    sims   = cosine_similarity([emb(my_txt)], embs(ctxts))[0]
+    top    = np.argsort(sims)[::-1][:5]
+    results = [(filtered[i], round(float(sims[i]) * 100, 1)) for i in top]
+    return results, total_before, total_after
+
 
 def radar_scores(s, inv, nlp):
     sec = 100.0 if s.get('sector')==inv.get('sector') else 15.0
@@ -711,7 +769,7 @@ def get_me():
            else get_investor(u['entity_id'])
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# HEADER
+# HEADER  (sign-out button top-right)
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_header():
     u  = st.session_state.user
@@ -730,38 +788,47 @@ def render_header():
         f'border-radius:4px;padding:1px 7px;font-size:.68rem;font-weight:700;'
         f'letter-spacing:.04em">STARTUP</span>'
     )
-    st.markdown(f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;
-                padding:18px 2px 0;margin-bottom:0">
-      <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <div style="width:30px;height:30px;background:linear-gradient(135deg,#b45309,#f59e0b);
-                    border-radius:7px;display:flex;align-items:center;justify-content:center">
-          <span style="color:#0a0a0f;font-weight:900;font-size:.85rem;
-                       font-family:Inter,sans-serif">S</span>
-        </div>
-        <div style="display:flex;align-items:baseline;gap:1px">
-          <span style="font-size:1.1rem;font-weight:900;color:#f8fafc;
-                       letter-spacing:-.03em">Start</span>
-          <span style="font-size:1.1rem;font-weight:900;color:#f59e0b;
-                       letter-spacing:-.03em">Match</span>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:14px">
-        {role_badge}
-        <div style="display:flex;align-items:center;gap:9px">
-          <div style="width:30px;height:30px;border-radius:50%;
-                      background:{c}18;border:1.5px solid {c}50;
-                      display:flex;align-items:center;justify-content:center;
-                      font-weight:800;font-size:.72rem;color:{c}">{ini}</div>
-          <div style="line-height:1.25">
-            <div style="font-size:.82rem;font-weight:700;color:#f1f5f9">{nm}</div>
-            <div style="font-size:.68rem;color:#475569">@{u['username']}</div>
+
+    h_col, btn_col = st.columns([11, 1])
+    with h_col:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:18px 2px 0;margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:30px;height:30px;background:linear-gradient(135deg,#b45309,#f59e0b);
+                        border-radius:7px;display:flex;align-items:center;justify-content:center">
+              <span style="color:#0a0a0f;font-weight:900;font-size:.85rem;
+                           font-family:Inter,sans-serif">S</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:1px">
+              <span style="font-size:1.1rem;font-weight:900;color:#f8fafc;
+                           letter-spacing:-.03em">Start</span>
+              <span style="font-size:1.1rem;font-weight:900;color:#f59e0b;
+                           letter-spacing:-.03em">Match</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            {role_badge}
+            <div style="display:flex;align-items:center;gap:9px">
+              <div style="width:30px;height:30px;border-radius:50%;
+                          background:{c}18;border:1.5px solid {c}50;
+                          display:flex;align-items:center;justify-content:center;
+                          font-weight:800;font-size:.72rem;color:{c}">{ini}</div>
+              <div style="line-height:1.25">
+                <div style="font-size:.82rem;font-weight:700;color:#f1f5f9">{nm}</div>
+                <div style="font-size:.68rem;color:#475569">@{u['username']}</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-    <div style="height:1px;background:#1a1a2e;margin:14px 0 0"></div>
-    """, unsafe_allow_html=True)
+        <div style="height:1px;background:#1a1a2e;margin:14px 0 0"></div>
+        """, unsafe_allow_html=True)
+
+    with btn_col:
+        st.markdown('<div class="signout-btn" style="padding-top:22px">', unsafe_allow_html=True)
+        if st.button("Sign out", key="header_signout"):
+            st.session_state.update(DEFS); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTH — LOGIN
@@ -820,14 +887,12 @@ def signup_page():
 
     _,c,_ = st.columns([1,2.4,1])
     with c:
-        # Logo
         st.markdown("""
         <div style="text-align:center;padding:28px 0 20px">
           <span style="font-size:1.4rem;font-weight:900;color:#f8fafc;
                        letter-spacing:-.03em">Start<span style="color:#f59e0b">Match</span></span>
         </div>""", unsafe_allow_html=True)
 
-        # Progress indicator
         steps = ["Identity","About","Financials & Access"]
         prog_html = '<div style="display:flex;align-items:center;margin-bottom:24px">'
         for i,s in enumerate(steps,1):
@@ -848,7 +913,6 @@ def signup_page():
         prog_html += '</div>'
         st.markdown(prog_html, unsafe_allow_html=True)
 
-        # ── STEP 1: Identity ──
         if step == 1:
             with st.container(border=True):
                 st.markdown("### Step 1 — Identity")
@@ -899,7 +963,6 @@ def signup_page():
                         ))
                         st.session_state.signup_step=2; st.rerun()
 
-        # ── STEP 2: About ──
         elif step == 2:
             role = sd.get('role','Startup')
             with st.container(border=True):
@@ -962,7 +1025,6 @@ def signup_page():
                             st.session_state.signup_data.update(updates)
                             st.session_state.signup_step=3; st.rerun()
 
-        # ── STEP 3: Financials + Credentials ──
         elif step == 3:
             role = sd.get('role','Startup')
             with st.container(border=True):
@@ -1064,24 +1126,6 @@ def signup_page():
             st.session_state.signup_data={}; st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR
-# ═══════════════════════════════════════════════════════════════════════════════
-def sidebar():
-    u  = st.session_state.user
-    me = get_me()
-    with st.sidebar:
-        st.markdown(
-            "<span style='font-size:1rem;font-weight:900;color:#f8fafc'>"
-            "Start</span><span style='font-size:1rem;font-weight:900;"
-            "color:#f59e0b'>Match</span>", unsafe_allow_html=True)
-        st.markdown("---")
-        st.markdown(f"**{(me or {}).get('name', u['username'])}**")
-        st.caption(f"{u['role']} · @{u['username']}")
-        st.markdown("---")
-        if st.button("Sign Out", use_container_width=True):
-            st.session_state.update(DEFS); st.rerun()
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
 def dashboard_tab():
@@ -1093,7 +1137,6 @@ def dashboard_tab():
     sc  = me.get('sector','Other')
     clr = sector_color(sc)
 
-    # Top greeting + stats row
     with st.container(border=True):
         gc1,gc2 = st.columns([4,1])
         with gc1:
@@ -1110,7 +1153,6 @@ def dashboard_tab():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Stats strip
     all_s  = all_startups()
     all_i  = all_investors()
     matches= compute_matches(u)
@@ -1125,7 +1167,6 @@ def dashboard_tab():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Two-panel: Top Matches + Market Pulse
     left, right = st.columns([3,2], gap="large")
 
     with left:
@@ -1237,7 +1278,6 @@ def profile_tab():
     if not e: st.error("Profile not found."); return
     sc = e.get('sector','Other'); clr = sector_color(sc)
 
-    # ── Hero band ─────────────────────────────────────────────────────────────
     st.markdown(
         f'<div style="background:linear-gradient(135deg,{clr}0d 0%,#13131f 60%),'
         f'#13131f;border:1px solid {clr}22;border-radius:14px;'
@@ -1258,13 +1298,11 @@ def profile_tab():
         f'</div></div>',
         unsafe_allow_html=True)
 
-    # Edit button
     ec = st.columns([6,1])[1]
     with ec:
         if st.button("Edit Profile", use_container_width=True):
             st.session_state.edit_mode=True; st.rerun()
 
-    # ── Two-column body ────────────────────────────────────────────────────────
     col_l, col_r = st.columns([3,2], gap="large")
 
     if u['role'] == "Startup":
@@ -1312,7 +1350,7 @@ def profile_tab():
                         f'<span style="font-size:.9rem;font-weight:700;color:#f1f5f9">'
                         f'{mv}</span></div>', unsafe_allow_html=True)
 
-    else:  # Investor
+    else:
         with col_l:
             with st.container(border=True):
                 st.markdown(lbl("Investment Thesis"), unsafe_allow_html=True)
@@ -1362,17 +1400,122 @@ def profile_tab():
                         f'{mv}</span></div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MATCHES TAB
+# MATCHES TAB  — with filter bar
 # ═══════════════════════════════════════════════════════════════════════════════
 def matches_tab():
     u      = st.session_state.user
-    target = "Investors" if u['role']=="Startup" else "Startups"
-    with st.spinner("Computing real-time matches…"):
-        matches = compute_matches(u)
+    target = "Investors" if u['role'] == "Startup" else "Startups"
 
     st.markdown(f"## Top 5 Matches — {target}")
-    st.caption("Ranked by AI semantic similarity between your pitch and each counterpart's thesis.")
+    st.caption("Ranked by AI semantic similarity. Use filters to narrow the field.")
+
+    # ── Filter bar ────────────────────────────────────────────────────────────
+    with st.container(border=True):
+        st.markdown(
+            '<span style="font-size:.68rem;font-weight:700;color:#f59e0b;'
+            'text-transform:uppercase;letter-spacing:.09em">Filter Matches</span>',
+            unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 2, 2, 1])
+
+        f_sector   = fc1.selectbox("Sector",         ["All"] + SECTORS,  key="mf_sector")
+        f_stage    = fc2.selectbox("Stage",           ["All"] + STAGES,   key="mf_stage")
+        f_biz_model= fc3.selectbox("Business Model",  ["All"] + BIZ_MODELS, key="mf_bm")
+        f_location = fc4.text_input("Location (city)", placeholder="e.g. London", key="mf_loc")
+
+        with fc5:
+            st.markdown("<br>", unsafe_allow_html=True)
+            reset = st.button("Reset", use_container_width=True, key="mf_reset")
+            if reset:
+                for k in ("mf_sector","mf_stage","mf_bm","mf_loc"):
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
+
+    # Determine whether any filter is active
+    filters_active = (
+        f_sector    != "All" or
+        f_stage     != "All" or
+        f_biz_model != "All" or
+        bool(f_location.strip())
+    )
+
     st.markdown("---")
+
+    # ── Compute matches ───────────────────────────────────────────────────────
+    with st.spinner("Computing matches…"):
+        if filters_active:
+            matches, total_before, total_after = compute_filtered_matches(
+                u,
+                f_sector    = f_sector    if f_sector    != "All" else None,
+                f_stage     = f_stage     if f_stage     != "All" else None,
+                f_location  = f_location.strip() or None,
+                f_biz_model = f_biz_model if f_biz_model != "All" else None,
+            )
+        else:
+            raw = compute_matches(u)
+            matches      = raw
+            total_before = len(registered_opposite(u['role']))
+            total_after  = total_before
+
+    # ── Results header ────────────────────────────────────────────────────────
+    if filters_active:
+        active_labels = []
+        if f_sector    != "All":       active_labels.append(f"Sector: **{f_sector}**")
+        if f_stage     != "All":       active_labels.append(f"Stage: **{f_stage}**")
+        if f_biz_model != "All":       active_labels.append(f"Model: **{f_biz_model}**")
+        if f_location.strip():         active_labels.append(f"Location: **{f_location.strip()}**")
+        st.markdown(
+            f'<div style="background:rgba(245,158,11,.07);border:1px solid '
+            f'rgba(245,158,11,.2);border-radius:8px;padding:10px 16px;margin-bottom:16px">'
+            f'<span style="font-size:.82rem;color:#fbbf24">Filters active — </span>'
+            f'<span style="font-size:.82rem;color:#94a3b8">'
+            f'{"  ·  ".join(active_labels)}</span>'
+            f'<span style="font-size:.82rem;color:#475569;margin-left:12px">'
+            f'{total_after} of {total_before} {target.lower()} match your criteria</span>'
+            f'</div>',
+            unsafe_allow_html=True)
+
+    # ── Empty states ──────────────────────────────────────────────────────────
+    if total_before == 0:
+        # Nobody on the platform at all
+        with st.container(border=True):
+            st.markdown(
+                f"<div style='text-align:center;padding:56px 0'>"
+                f"<div style='font-size:2.4rem;opacity:.25;margin-bottom:12px'>◎</div>"
+                f"<div style='font-size:1.1rem;font-weight:700;color:#f1f5f9;margin-bottom:8px'>"
+                f"No {target} on the platform yet</div>"
+                f"<div style='color:#475569;font-size:.88rem;max-width:360px;margin:0 auto'>"
+                f"Share StartMatch with {target.lower()} to unlock AI-powered matching."
+                f"</div></div>",
+                unsafe_allow_html=True)
+        return
+
+    if filters_active and total_after == 0:
+        # Filters too narrow
+        active_filters_str = ", ".join([
+            v for v in [
+                f_sector    if f_sector    != "All" else "",
+                f_stage     if f_stage     != "All" else "",
+                f_biz_model if f_biz_model != "All" else "",
+                f_location.strip(),
+            ] if v
+        ])
+        with st.container(border=True):
+            st.markdown(
+                f"<div style='text-align:center;padding:48px 20px'>"
+                f"<div style='font-size:2rem;opacity:.3;margin-bottom:12px'>🔍</div>"
+                f"<div style='font-size:1rem;font-weight:700;color:#f1f5f9;margin-bottom:8px'>"
+                f"No {target.lower()} match these filters</div>"
+                f"<div style='color:#64748b;font-size:.85rem;max-width:400px;margin:0 auto;line-height:1.6'>"
+                f"Your current filter combination <span style='color:#fbbf24'>"
+                f"({active_filters_str})</span> returned no results from "
+                f"the {total_before} registered {target.lower()}.<br><br>"
+                f"Try broadening one or more filters, or click <strong>Reset</strong> "
+                f"to see all matches.</div></div>",
+                unsafe_allow_html=True)
+        return
 
     if not matches:
         with st.container(border=True):
@@ -1380,17 +1523,21 @@ def matches_tab():
                 f"<div style='text-align:center;padding:56px 0'>"
                 f"<div style='font-size:2.4rem;opacity:.25;margin-bottom:12px'>◎</div>"
                 f"<div style='font-size:1.1rem;font-weight:700;color:#f1f5f9;margin-bottom:8px'>"
-                f"No {target} registered yet</div>"
+                f"No matches found</div>"
                 f"<div style='color:#475569;font-size:.88rem;max-width:360px;margin:0 auto'>"
-                f"Share StartMatch with {target.lower()} to unlock AI-powered matching."
+                f"Try adjusting or resetting your filters."
                 f"</div></div>",
                 unsafe_allow_html=True)
         return
 
-    for rank,(m,score) in enumerate(matches,1):
-        m_role = "Investor" if u['role']=="Startup" else "Startup"
-        sc_col = sector_color(m.get('sector','Other'))
-        excerpt= (m.get('thesis') or m.get('description') or '')[:160]
+    # ── Match cards ───────────────────────────────────────────────────────────
+    if not filters_active:
+        st.caption("Showing unfiltered top 5 — use the filters above to narrow results.")
+
+    m_role = "Investor" if u['role'] == "Startup" else "Startup"
+    for rank,(m,score) in enumerate(matches, 1):
+        sc_col  = sector_color(m.get('sector','Other'))
+        excerpt = (m.get('thesis') or m.get('description') or '')[:160]
 
         with st.container(border=True):
             top_l, top_r = st.columns([6,1])
@@ -1462,7 +1609,6 @@ def drilldown_page():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Hero ──────────────────────────────────────────────────────────────────
     score_label = "Strong Fit" if score>=70 else ("Moderate Fit" if score>=50 else "Weak Fit")
     score_clr   = "#34d399" if score>=70 else ("#fbbf24" if score>=50 else "#f87171")
     st.markdown(
@@ -1486,7 +1632,6 @@ def drilldown_page():
         f'</div></div></div>',
         unsafe_allow_html=True)
 
-    # ── Quick Stats ───────────────────────────────────────────────────────────
     sec_match = (s_e or {}).get('sector') == (inv_e or {}).get('sector')
     istg = [x.strip() for x in ((inv_e or {}).get('stage') or '').split(',')]
     stg_match = (s_e or {}).get('stage') in istg
@@ -1513,7 +1658,6 @@ def drilldown_page():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Match Summary ─────────────────────────────────────────────────────────
     with st.container(border=True):
         st.markdown(lbl("AI Match Summary"), unsafe_allow_html=True)
         st.markdown(
@@ -1521,7 +1665,6 @@ def drilldown_page():
             f'{gen_summary(me or {}, m, u["role"], score)}</p>',
             unsafe_allow_html=True)
 
-    # ── Charts ────────────────────────────────────────────────────────────────
     BG = "#13131f"; GRID = "#1a1a2e"; TC = "#475569"
     cc1,cc2 = st.columns(2)
 
@@ -1571,7 +1714,6 @@ def drilldown_page():
             )
             st.plotly_chart(fig2, use_container_width=True)
 
-    # ── Score Breakdown table ─────────────────────────────────────────────────
     with st.container(border=True):
         st.markdown(lbl("Score Breakdown"), unsafe_allow_html=True)
         reasons = {
@@ -1589,7 +1731,6 @@ def drilldown_page():
             sc2.progress(max(0.0, min(val/100, 1.0)))
             sc3.caption(reasons.get(sig,''))
 
-    # ── Red Flags ─────────────────────────────────────────────────────────────
     flags = gen_red_flags(s_e or {}, inv_e or {})
     if flags:
         with st.container(border=True):
@@ -1604,7 +1745,6 @@ def drilldown_page():
                     f'margin-bottom:6px;font-size:.85rem;color:#fca5a5">{fl}</div>',
                     unsafe_allow_html=True)
 
-    # ── Shared Themes ─────────────────────────────────────────────────────────
     their_txt = m.get('thesis','') if role=="Investor" else m.get('description','')
     my_txt    = (me or {}).get('description','') if u['role']=="Startup" \
                 else (me or {}).get('thesis','')
@@ -1614,7 +1754,6 @@ def drilldown_page():
             st.markdown(lbl("Shared Themes"), unsafe_allow_html=True)
             st.markdown(" ".join(tag_html(k) for k in kw), unsafe_allow_html=True)
 
-    # ── Next Steps ────────────────────────────────────────────────────────────
     with st.container(border=True):
         st.markdown(lbl("Recommended Next Steps"), unsafe_allow_html=True)
         for i,step in enumerate(gen_next_steps(me or {}, m, u['role']),1):
@@ -1628,7 +1767,6 @@ def drilldown_page():
                 f'{step}</p></div>',
                 unsafe_allow_html=True)
 
-    # ── Reach Out ─────────────────────────────────────────────────────────────
     with st.container(border=True):
         st.markdown(lbl("Reach Out"), unsafe_allow_html=True)
         mn  = (me or {}).get('name','')
@@ -1649,7 +1787,6 @@ def drilldown_page():
         st.link_button("Send Introduction Email",
                        f"mailto:?subject={subj.replace(' ','%20')}&body={body}")
 
-    # ── Full Profile Details ──────────────────────────────────────────────────
     with st.expander("Full Profile Details"):
         if role == "Investor":
             c1,c2,c3,c4 = st.columns(4)
@@ -1765,7 +1902,6 @@ def stats_tab():
         )
         return f
 
-    # Row 1
     r1c1, r1c2 = st.columns(2)
     with r1c1:
         st.markdown("#### Startups by Sector")
@@ -1782,7 +1918,6 @@ def stats_tab():
         f = donut(all_s,"Stage","")
         if f: st.plotly_chart(f, use_container_width=True)
 
-    # Row 2
     r2c1, r2c2 = st.columns(2)
     with r2c1:
         st.markdown("#### Investors by Sector")
@@ -1798,7 +1933,6 @@ def stats_tab():
         f = bar(all_s,"Location","Count","")
         if f: st.plotly_chart(f, use_container_width=True)
 
-    # Your position
     st.markdown("---")
     st.markdown("#### Your Position in the Market")
     p1,p2,p3 = st.columns(3)
@@ -1939,7 +2073,6 @@ if not st.session_state.authenticated:
     if st.session_state.auth_view=="signup": signup_page()
     else:                                    login_page()
 else:
-    sidebar()
     if st.session_state.edit_mode:
         edit_profile_page()
     elif st.session_state.drilldown_id:
